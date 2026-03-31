@@ -692,55 +692,65 @@ function handleInvoiceUpload(event){
   document.getElementById('cameraSub').textContent='AI đang đọc thông tin';
   document.getElementById('scanResult').classList.remove('show');
   document.getElementById('saveInvoiceBtn').style.display='none';
-  var reader2=new FileReader();
-  reader2.onload=function(ev){
-    var b64=ev.target.result.split(',')[1];
-    var mtype=file.type||'image/jpeg';
-    fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:1000,
-        messages:[{
-          role:'user',
-          content:[
-            {type:'image',source:{type:'base64',media_type:mtype,data:b64}},
-            {type:'text',text:'Phan tich hoa don/bill trong anh. Tra ve JSON DUNG dinh dang, KHONG text them:\n{\"name\":\"mo ta ngan\",\"amount\":0,\"place\":\"ten cua hang\",\"category\":\"food|drink|baby|shopping|household|transport|health|invest|loan|debt|entertain|other\",\"date\":\"YYYY-MM-DD hoac null\"}\nNeu khong doc duoc so tien: amount:0. Chi JSON.'}
-          ]
-        }]
-      })
-    }).then(function(res){return res.json();}).then(function(dat){
-      if(dat.error)throw new Error(dat.error.message||'API error');
-      var raw=dat.content&&dat.content.map(function(i){return i.text||'';}).join('')||'';
-      var p=JSON.parse(raw.replace(/```json|```/g,'').trim());
-      scanData=p;
-      var cat=getCat(p.category);
-      document.getElementById('sr-name').textContent=p.name||'—';
-      document.getElementById('sr-amount').textContent=p.amount?'₫'+p.amount.toLocaleString('vi'):'—';
-      document.getElementById('sr-place').textContent=p.place||'—';
-      document.getElementById('sr-cat').textContent=cat.icon+' '+cat.name;
-      document.getElementById('sr-date').textContent=p.date||'Hôm nay';
-      document.getElementById('scanResult').classList.add('show');
-      document.getElementById('saveInvoiceBtn').style.display='block';
-      document.getElementById('cameraText').textContent='Phân tích hoàn tất ✨';
-      document.getElementById('cameraSub').textContent='Kiểm tra và lưu';
-    }).catch(function(err){
-      document.getElementById('cameraText').textContent='Không đọc được';
-      document.getElementById('cameraSub').textContent=err.message||'Lỗi không xác định';
-      showToast('❌ '+err.message);
-    }).finally(function(){
-      document.getElementById('scanSpinner').classList.remove('show');
-      document.getElementById('cameraIcon').style.display='';
-      document.getElementById('cameraArea').classList.remove('scanning');
-    });
+  var imgReader=new FileReader();
+  imgReader.onload=function(ev){
+    var img=new Image();
+    img.onload=function(){
+      var canvas=document.createElement('canvas');
+      var MAX=1024;
+      var w=img.width,h=img.height;
+      if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      var b64=canvas.toDataURL('image/jpeg',0.75).split(',')[1];
+      fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body:JSON.stringify({
+          model:'claude-haiku-4-5-20251001',
+          max_tokens:800,
+          messages:[{role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
+            {type:'text',text:'Phan tich hoa don trong anh. Chi tra ve JSON, KHONG text them:\n{"name":"mo ta ngan","amount":0,"place":"cua hang","category":"food|drink|baby|shopping|household|transport|health|invest|loan|debt|entertain|other","date":"YYYY-MM-DD hoac null"}\nNeu khong ro so tien thi amount:0.'}
+          ]}]
+        })
+      }).then(function(res){
+        if(!res.ok)return res.json().then(function(e){throw new Error((e.error&&e.error.message)||'HTTP '+res.status);});
+        return res.json();
+      }).then(function(dat){
+        var raw=dat.content&&dat.content.map(function(i){return i.text||'';}).join('')||'';
+        var clean=raw.replace(/```json|```/g,'').trim();
+        var p=JSON.parse(clean);
+        scanData=p;
+        var cat=getCat(p.category);
+        document.getElementById('sr-name').textContent=p.name||'—';
+        document.getElementById('sr-amount').textContent=p.amount?'₫'+p.amount.toLocaleString('vi'):'—';
+        document.getElementById('sr-place').textContent=p.place||'—';
+        document.getElementById('sr-cat').textContent=cat.icon+' '+cat.name;
+        document.getElementById('sr-date').textContent=p.date||'Hôm nay';
+        document.getElementById('scanResult').classList.add('show');
+        document.getElementById('saveInvoiceBtn').style.display='block';
+        document.getElementById('cameraText').textContent='Phân tích hoàn tất ✨';
+        document.getElementById('cameraSub').textContent='Kiểm tra và lưu';
+      }).catch(function(err){
+        document.getElementById('cameraText').textContent='Lỗi: '+err.message;
+        document.getElementById('cameraSub').textContent='Vui lòng thử lại';
+        showToast('❌ '+err.message);
+      }).finally(function(){
+        document.getElementById('scanSpinner').classList.remove('show');
+        document.getElementById('cameraIcon').style.display='';
+        document.getElementById('cameraArea').classList.remove('scanning');
+      });
+    };
+    img.src=ev.target.result;
   };
-  reader2.readAsDataURL(file);
+  imgReader.readAsDataURL(file);
 }
+
 
 function saveInvoice(){
   if(!scanData)return;
