@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KiwiFamily</title>
+<title>Chi Tiêu Gia Đình</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥝</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0a0a0f;--surface:#13131a;--surface2:#1c1c28;--surface3:#242436;--border:rgba(255,255,255,0.07);--accent:#7c6fff;--accent2:#ff6b9d;--accent3:#00d4aa;--accent4:#ffa94d;--text:#f0f0ff;--text2:#8888aa;--text3:#555570;--success:#00d4aa;--danger:#ff4d6d;--radius:18px;--radius-sm:12px;--jon:#7c6fff;--thi:#ff6b9d}
@@ -421,8 +422,8 @@ const CATS=[
   {id:'other',name:'Khác',icon:'📦',color:'#888'},
 ];
 const USERS={jon:{name:'Ba Giôn',ava:'👨'},thi:{name:'Mẹ Thi',ava:'👩'}};
-const OR_KEY='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';
-const OR_MODEL='google/gemini-flash-1.5-8b';
+const OR_KEY='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'; // openrouter key
+const OR_MODEL='google/gemini-flash-1.5-8b'; // model
 
 let txs=JSON.parse(localStorage.getItem('txs_v2')||'[]');
 let activeUser=localStorage.getItem('activeUser')||'jon';
@@ -695,28 +696,27 @@ function handleInvoiceUpload(event){
   reader2.onload=function(ev){
     var b64=ev.target.result.split(',')[1];
     var mtype=file.type||'image/jpeg';
-    fetch('https://openrouter.ai/api/v1/chat/completions',{
+    fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'Authorization':'Bearer '+OR_KEY,
-        'HTTP-Referer':'https://johnha2408.github.io',
-        'X-Title':'Chi Tieu Gia Dinh'
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
       },
       body:JSON.stringify({
-        model:OR_MODEL,
+        model:'claude-haiku-4-5-20251001',
         max_tokens:1000,
         messages:[{
           role:'user',
           content:[
-            {type:'image_url',image_url:{url:'data:'+mtype+';base64,'+b64}},
-            {type:'text',text:'Phan tich hoa don/bill trong anh. Tra ve JSON DUNG dinh dang, KHONG text them:\n{"name":"mo ta ngan","amount":0,"place":"ten cua hang","category":"food|drink|baby|shopping|household|transport|health|invest|loan|debt|entertain|other","date":"YYYY-MM-DD hoac null"}\nNeu khong doc duoc so tien: amount:0. Chi JSON.'}
+            {type:'image',source:{type:'base64',media_type:mtype,data:b64}},
+            {type:'text',text:'Phan tich hoa don/bill trong anh. Tra ve JSON DUNG dinh dang, KHONG text them:\n{\"name\":\"mo ta ngan\",\"amount\":0,\"place\":\"ten cua hang\",\"category\":\"food|drink|baby|shopping|household|transport|health|invest|loan|debt|entertain|other\",\"date\":\"YYYY-MM-DD hoac null\"}\nNeu khong doc duoc so tien: amount:0. Chi JSON.'}
           ]
         }]
       })
     }).then(function(res){return res.json();}).then(function(dat){
       if(dat.error)throw new Error(dat.error.message||'API error');
-      var raw=dat.choices&&dat.choices[0]&&dat.choices[0].message&&dat.choices[0].message.content||'';
+      var raw=dat.content&&dat.content.map(function(i){return i.text||'';}).join('')||'';
       var p=JSON.parse(raw.replace(/```json|```/g,'').trim());
       scanData=p;
       var cat=getCat(p.category);
